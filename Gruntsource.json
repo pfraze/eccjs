@@ -1,7 +1,7 @@
 {
   "name": "ecc",
   "version": "0.1.0",
-  "title": "Syntactic Sugar around SJCL's ECC Implementation",
+  "title": "Simple wrapper around SJCL's ECC Implementation",
   "author": "Jaime Pillora <dev@jpillora.com>",
   "license": "MIT/BSD(sljc)",
   "homepage": "https://github.com/jpillora/eccjs",

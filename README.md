@@ -1,4 +1,4 @@
 eccjs
 =====
 
-Syntactic Sugar around SJCL's ECC Implementation
+Simple wrapper around SJCL's ECC Implementation

@@ -68,9 +68,6 @@ var sjcl = {
   }
 };
 
-if(typeof module !== 'undefined' && module.exports){
-  module.exports = sjcl;
-}
 /** @fileOverview Low-level AES implementation.
  *
  * This file contains a low-level implementation of AES, optimized for
@@ -1628,7 +1625,7 @@ sjcl.prng.prototype = {
         }
         data = tmp;
       } else {
-        if (objName !== "[object Array]") {
+        if (typeof data.length !== "number") {
           err = 1;
         }
         for (i=0; i<data.length && !err; i++) {
@@ -1926,10 +1923,15 @@ sjcl.random = new sjcl.prng(6);
 (function(){
   try {
     var buf, crypt, getRandomValues, ab;
+
+
+
+
     // get cryptographically strong entropy depending on runtime environment
     if (typeof module !== 'undefined' && module.exports && (crypt = require('crypto')) && crypt.randomBytes) {
       buf = crypt.randomBytes(1024/8);
-      sjcl.random.addEntropy(buf, 1024, "crypto.randomBytes");
+
+      sjcl.random.addEntropy(buf.slice(), 1024, "crypto.randomBytes");
 
     } else if (window && Uint32Array) {
       ab = new Uint32Array(32);
