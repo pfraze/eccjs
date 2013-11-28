@@ -126,18 +126,20 @@ ECC.prototype.encrypt = function(recipient, plaintext) {
   var kem = this.enck[recipient];
   if(!kem)
     throw new Error("Could not find encrytion key beloning to: " +recipient);
-  return {
-    tag: kem.tag,
-    text: sjcl.encrypt(kem.key, plaintext)
-  };
+
+  var obj = sjcl.json._encrypt(kem.key, plaintext);
+
+  obj.tag = kem.tag;
+
+  return JSON.stringify(obj);
 };
 
 ECC.prototype.decrypt = function(cipher) {
   if(!this.k.decrypt)
     throw new Error("Decryption key missing");
-
-  var key = this.k.decrypt.unkem(cipher.tag);
-  return sjcl.decrypt(key, cipher.text);
+  var obj = JSON.parse(cipher);
+  var key = this.k.decrypt.unkem(obj.tag);
+  return sjcl.json._decrypt(key, obj);
 };
 
 ECC.prototype.sign = function(text, hashAlgo) {
