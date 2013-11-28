@@ -1,127 +1,181 @@
 
 var DEFAULTS = {
   curve: 384,
-  signVerify: false,
-  encryptDecrypt: false,
-  publicKey: null,
-  secretKey: null
+  generate: false,
+  signVerify: true,
+  encryptDecrypt: true,
+  encryptKey: null,
+  decryptKey: null,
+  verifyKey: null,
+  signKey: null
 };
 
-// var ECC = {
-//   encryptDecrypt: function() {
+var ecc = function ecc() {
+  return new ECC();
+};
 
+ecc.sjcl = sjcl;
 
-//   },
-//   signVerify: function() {
+//ecc algorithm helpers
+function eccAPI(algoName) {
+  var algo = sjcl.ecc[algoName];
+  if(!algo)
+    throw new Error("Missing ECC algorithm: " + algoName);
+  return {
+    generate: function(curve) {
+      return algo.generateKeys(curve, 1);
+    },
+    importPublicHex: function(curve, hex) {
+      curve = sjcl.ecc.curves['c'+curve];
+      return new algo.publicKey(curve, sjcl.codec.hex.toBits(hex));
+    },
+    importSecretHex: function(curve, hex) {
+      curve = sjcl.ecc.curves['c'+curve];
+      return new algo.secretKey(curve, new sjcl.bn(hex));
+    }
+  };
+}
 
-//   }
-// };
+//hash algorithm helpers
+function hashAPI(algoName) {
+  var algo = sjcl.hash[algoName];
+  if(!algo)
+    throw new Error("Missing hash algorithm: " + algoName);
+  return {
+    hash: function(input) {
+      return algo.hash(input);
+    }
+  };
+}
 
-function ECC(opts) {
-  //grab opts
+var algo = {
+  elg: eccAPI('elGamal'),
+  dsa: eccAPI('ecdsa'),
+  exportPublic: function(key) {
+    var obj = key.get();
+    return sjcl.codec.hex.fromBits(obj.x) +
+           sjcl.codec.hex.fromBits(obj.y);
+  },
+  exportSecret: function(key) {
+    return sjcl.codec.hex.fromBits(key.get());
+  },
+  sha256: hashAPI('sha256')
+};
+
+//ECC Class
+function ECC() {
+  this.k = {};
+  this.enck = {};
+  this.verk = {};
+}
+
+ECC.prototype.keys = function(opts) {
+  //grab defaults
   for(var k in DEFAULTS)
-    this[k] = opts[k] || DEFAULTS[k];
+    if(!opts.hasOwnProperty(k))
+      opts[k] =  DEFAULTS[k];
 
-  //choose a mode
-  if(!(this.signVerify ^ this.encryptDecrypt))
-    throw new Error("You must enable either 'signVerify' OR 'encryptDecrypt'");
-
-  //get correct algorithm
-  if(this.signVerify) {
-    this.algo = sjcl.ecc.ecdsa;
-    this.sign = sign;
-    this.verify = verify;
-  } else if(this.encryptDecrypt) {
-    this.algo = sjcl.ecc.elGamal;
-    this.encrypt = encrypt;
-    this.decrypt = decrypt;
-  }
+  //store curve
+  this.curve = opts.curve;
 
   //generate keys
-  if(!this.publicKey && !this.secretKey) {
-    this.keys = this.algo.generateKeys(this.curve, 1);
-  } else {
-    this.keys = {};
+  if(opts.generate && opts.encryptDecrypt) {
+    if(opts.encryptKey || opts.decryptKey)
+      throw new Error("Keys 'encryptKey' and 'decryptKey' will be overridden");
+    var encdec = algo.elg.generate(this.curve);
+    this.k.encrypt = encdec.pub;
+    this.k.decrypt = encdec.sec;
   }
 
-  //import public key hex
-  if(this.publicKey) {
-    var publicKeyBits = sjcl.codec.hex.toBits(this.publicKey);
-    this.keys.pub = new this.algo.publicKey(sjcl.ecc.curves['c'+this.curve], publicKeyBits);
+  if(opts.generate && opts.signVerify) {
+    if(opts.signKey || opts.verifyKey)
+      throw new Error("Keys 'signKey' and 'verifyKey' will be overridden");
+    var sigver = algo.dsa.generate(this.curve);
+    this.k.verify = sigver.pub;
+    this.k.sign   = sigver.sec;
   }
 
-  //import private key hex
-  if(this.secretKey) {
-    if(!this.keys.pub)
-      throw new Error("You must provide 'publicKey' AND 'secretKey'");
-    var secretKeyBits = new sjcl.bn(this.secretKey);
-    this.keys.sec = new this.algo.secretKey(sjcl.ecc.curves['c'+this.curve], secretKeyBits);
+  //import provided keys
+  if(opts.encryptKey)
+    this.k.encrypt = algo.elg.importPublicHex(this.curve, opts.encryptKey);
+  if(opts.decryptKey)
+    this.k.decrypt = algo.elg.importSecretHex(this.curve, opts.decryptKey);
+  if(opts.verifyKey)
+    this.k.verify = algo.dsa.importPublicHex(this.curve, opts.verifyKey);
+  if(opts.signKey)
+    this.k.sign = algo.dsa.importSecretHex(this.curve, opts.signKey);
+
+  //expose provided public keys
+  if(this.k.encrypt)
+    this.encryptKey = algo.exportPublic(this.k.encrypt);
+  if(this.k.verify)
+    this.verifyKey = algo.exportPublic(this.k.verify);
+
+  return this;
+};
+
+ECC.prototype.addEncryptKey = function(recipient, hex) {
+  if(this.enck[recipient])
+    throw new Error("Encryption key already exists beloning to: " +recipient);
+
+  var key = algo.elg.importPublicHex(this.curve, hex);
+  this.enck[recipient] = key.kem();
+};
+
+ECC.prototype.encrypt = function(recipient, plaintext) {
+  var kem = this.enck[recipient];
+  if(!kem)
+    throw new Error("Could not find encrytion key beloning to: " +recipient);
+  return {
+    tag: kem.tag,
+    text: sjcl.encrypt(kem.key, plaintext)
+  };
+};
+
+ECC.prototype.decrypt = function(cipher) {
+  if(!this.k.decrypt)
+    throw new Error("Decryption key missing");
+
+  var key = this.k.decrypt.unkem(cipher.tag);
+  return sjcl.decrypt(key, cipher.text);
+};
+
+ECC.prototype.sign = function(text, hashAlgo) {
+
+  if(!this.k.sign)
+    throw new Error("Sign key missing");
+
+  if(hashAlgo)
+    text = algo[hashAlgo].hash(text);
+
+  return this.k.sign.sign(text);
+};
+
+ECC.prototype.addVerifyKey = function(recipient, hex) {
+  if(this.verk[recipient])
+    throw new Error("Verify key already exists beloning to: " +recipient);
+
+  this.verk[recipient] = algo.dsa.importPublicHex(this.curve, hex);
+};
+
+ECC.prototype.verify = function(recipient, text, signature, hashAlgo) {
+
+  var key = this.verk[recipient];
+  if(!key)
+    throw new Error("Could not find verify key beloning to: " + recipient);
+
+  if(hashAlgo)
+    text = algo[hashAlgo].hash(text);
+
+  try {
+    return key.verify(text, signature);
+  } catch(e) {
+    return false;
   }
-
-  //extract actual keys
-  if(this.keys.pub) {
-    this.keys.pubKem = this.keys.pub.kem();
-    this.keys.pubKey = this.keys.pubKem.key;
-    this.keys.pubTag = this.keys.pubKem.key;
-  }
-}
-
-ECC.prototype.hasPublicKey = function() {
-  if(!this.keys.pub) throw new Error("You have no public key");
 };
 
-ECC.prototype.hasSecretKey = function() {
-  if(!this.keys.sec) throw new Error("You have no secret key");
-};
-
-ECC.prototype.addPublicTag = function(tag) {
-
-};
-
-ECC.prototype.getPublicTag = function(tag) {
-
-};
-
-ECC.prototype.getPublicKey = function() {
-  this.hasPublicKey();
-  var pubKeyObj = this.keys.pub.get();
-  var pubKeyHex = sjcl.codec.hex.fromBits(pubKeyObj.x) + sjcl.codec.hex.fromBits(pubKeyObj.y);
-  return pubKeyHex;
-};
-
-ECC.prototype.getSecretKey = function() {
-  this.hasSecretKey();
-  var secKeyObj = this.keys.sec.get();
-  var secKeyHex = sjcl.codec.hex.fromBits(secKeyObj);
-  return secKeyHex;
-};
-
-
-//these four are dynamically attached
-function encrypt(plaintext) {
-  this.hasPublicKey();
-  return sjcl.encrypt(this.keys.pubKey, plaintext);
-}
-
-function decrypt(ciphertext) {
-
-  // this.keys.sec.unkem(this.keys.pubKem.tag);
-
-  this.hasSecretKey();
-  return sjcl.decrypt(this.keys.secKey, ciphertext);
-}
-
-function sign(text) {
-  this.hasPublicKey();
-}
-
-function verify(signature, text) {
-  this.hasSecretKey();
-}
-
-ECC.sjcl = sjcl;
-
+//publicise
 if(typeof module !== 'undefined' && module.exports)
-  module.exports = ECC;
+  module.exports = ecc;
 else
-  window.ECC = ECC;
+  window.ecc = ecc;
