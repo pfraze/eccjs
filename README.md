@@ -1,7 +1,7 @@
 ecc.js
 =====
 
-Simple wrapper around SJCL's ECC Implementation `v0.1.0` (Beta)
+Simple wrapper around [SJCL](http://bitwiseshiftleft.github.io/sjcl/)'s [ECC](http://en.wikipedia.org/wiki/Elliptic_curve_cryptography) Implementation `v0.1.0` (Beta)
 
 ## Download
 
@@ -19,8 +19,11 @@ npm install eccjs
 ## Features
 
 * Easy to use
-* Includes [SJCL]() as `ecc.sjcl`
+* Includes [SJCL](http://bitwiseshiftleft.github.io/sjcl/) as `ecc.sjcl`
 
+## Demo
+
+http://jpillora.com/eccjs
 
 ## Quick Usage
 
@@ -77,7 +80,7 @@ Global
 `ECC` Methods
 
 * `keys(opts)` - Provide keys to this instance
-  * `opts.curve` - (`384`) Curve to use
+  * `opts.curve` - (`384`) NIST curve to use, can be: `192`, `224`, `256`, or `384`.
   * `opts.generate` (`false`) - Generate key-pairs.
   * `opts.encryptDecrypt` (`true`) - On generate, create a encrypt/decrypt key-pair.
   * `opts.signVerify` (`true`) - On generate, create a sign/verify key-pair.
@@ -96,14 +99,14 @@ When a key is generated or imported, it's hex representation will be avaliable a
 To encrypt or verify a message, you must first add the recipient's key first:
 
 * `addEncryptKey(recipient, hex)`
-* `addVerifyKey(recipient, hex)`
+* `addVerifyKey(sender, hex)`
 
 Once you've got the appropriate keys, you can then:
 
 * `encrypt(recipient, text)` - Encrypts the `text` for `recipient`, producing a `cipher` object.
 * `decrypt(cipher)` - Decrypts the `cipher` object, producing the `text`.
 * `sign(message[, hash])` - Digitally signs the `message` string, producing the `sig`. `message` can optionally be hashed by setting `hash` to `"sha256"`.
-* `verify(recipient, message, sig[, hash])` - Confirm a `message` came from `recipient` by verifying the `sig`. `message` can optionally be hashed by setting `hash` to `"sha256"`.
+* `verify(sender, message, sig[, hash])` - Confirm a `message` came from `sender` by verifying the `sig`. `message` can optionally be hashed by setting `hash` to `"sha256"`.
 
 ---
 
