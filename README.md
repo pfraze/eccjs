@@ -104,7 +104,7 @@ To encrypt or verify a message, you must first add the recipient's key first:
 Once you've got the appropriate keys, you can then:
 
 * `encrypt(recipient, text)` - Encrypts the `text` for `recipient`, producing a `cipher` object.
-* `decrypt(cipher)` - Decrypts the `cipher` object, producing the `text`.
+* `decrypt(cipher)` - Decrypts the `cipher` object, producing the `text`. Note, the first decryption derives and caches the shared key.
 * `sign(message[, hash])` - Digitally signs the `message` string, producing the `sig`. `message` can optionally be hashed by setting `hash` to `"sha256"`.
 * `verify(sender, message, sig[, hash])` - Confirm a `message` came from `sender` by verifying the `sig`. `message` can optionally be hashed by setting `hash` to `"sha256"`.
 

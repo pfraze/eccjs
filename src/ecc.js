@@ -66,8 +66,11 @@ var algo = {
 function ECC() {
   this.k = {};
   this.enck = {};
+  this.deck = {};
   this.verk = {};
 }
+
+ECC.prototype.curve = DEFAULTS.curve;
 
 ECC.prototype.keys = function(opts) {
   //grab defaults
@@ -127,18 +130,22 @@ ECC.prototype.encrypt = function(recipient, plaintext) {
   if(!kem)
     throw new Error("Could not find encrytion key beloning to: " +recipient);
 
+  if(!kem.tagHex)
+    kem.tagHex = sjcl.codec.hex.fromBits(kem.tag);
+
   var obj = sjcl.json._encrypt(kem.key, plaintext);
-
-  obj.tag = kem.tag;
-
+  obj.tag = kem.tagHex;
   return JSON.stringify(obj);
 };
 
 ECC.prototype.decrypt = function(cipher) {
   if(!this.k.decrypt)
     throw new Error("Decryption key missing");
+  
   var obj = JSON.parse(cipher);
-  var key = this.k.decrypt.unkem(obj.tag);
+  var key = this.deck[obj.tag];
+  if(!key)
+    key = this.deck[obj.tag] = this.k.decrypt.unkem(sjcl.codec.hex.toBits(obj.tag));
   return sjcl.json._decrypt(key, obj);
 };
 
