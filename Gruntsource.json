@@ -1,6 +1,6 @@
 {
   "name": "ecc",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "title": "Simple wrapper around SJCL's ECC Implementation",
   "author": "Jaime Pillora <dev@jpillora.com>",
   "license": "MIT/BSD(sljc)",

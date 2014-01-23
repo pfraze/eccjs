@@ -1,20 +1,97 @@
 
-var DEFAULTS = {
-  curve: 384,
-  generate: false,
-  signVerify: true,
-  encryptDecrypt: true,
-  encryptKey: null,
-  decryptKey: null,
-  verifyKey: null,
-  signKey: null
-};
-
-var ecc = function ecc() {
-  return new ECC();
-};
+var ecc = {},
+    DEFAULT_CURVE = 192,
+    ENC_DEC = ecc.ENC_DEC = {},
+    SIG_VER = ecc.SIG_VER = {},
+    elg = eccAPI('elGamal'),
+    dsa = eccAPI('ecdsa'),
+    sha256 = hashAPI('sha256');
 
 ecc.sjcl = sjcl;
+
+ecc.generate = function(type, curve) {
+  if(!curve)
+    curve = DEFAULT_CURVE;
+  var keys, pub, sec;
+  if(type === ENC_DEC) {
+    pub = 'enc';
+    sec = 'dec';
+    keys = elg.generate(curve);
+  } else if(type === SIG_VER) {
+    pub = 'ver';
+    sec = 'sig';
+    keys = dsa.generate(curve);
+  } else
+    throw "eccjs: generate: Unknown type";
+
+  var newkeys = {};
+  newkeys[pub] = exportPublic(keys.pub);
+  newkeys[sec] = exportSecret(keys.sec);
+  return newkeys;
+};
+
+var cache = {
+  enc: {}, dec: {}, sig: {}, ver: {}
+};
+
+ecc.encrypt = function(enckey, plaintext) {
+  var kem = cache.enc[enckey];
+
+  if(!kem) {
+    kem = cache.enc[enckey] = elg.importPublic(enckey).kem();
+    kem.tagHex = sjcl.codec.hex.fromBits(kem.tag);
+  }
+
+  var obj = sjcl.json._encrypt(kem.key, plaintext);
+  obj.tag = kem.tagHex;
+  return JSON.stringify(obj);
+};
+
+
+ecc.decrypt = function(deckey, ciphertext) {
+  var obj = JSON.parse(ciphertext);
+
+  var kem = cache.dec[deckey];
+  if(!kem) {
+    kem = cache.dec[deckey] = elg.importSecret(deckey);
+    kem.$keys = {};
+  }
+
+  var key = kem.$keys[obj.tag];
+  if(!key)
+    key = kem.$keys[obj.tag] = kem.unkem(sjcl.codec.hex.toBits(obj.tag));
+
+  return sjcl.json._decrypt(key, obj);
+};
+
+ecc.sign = function(sigkey, text, hash) {
+  var key = cache.sig[sigkey];
+  if(!key)
+    key = cache.sig[sigkey] = dsa.importSecret(sigkey);
+
+  //hash first
+  if(hash !== false)
+    text = sha256.hash(text);
+
+  return key.sign(text);
+};
+
+ecc.verify = function(verkey, signature, text, hash) {
+  var key = cache.ver[verkey];
+  if(!key)
+    key = cache.ver[verkey] = dsa.importPublic(verkey);
+
+  //hash first
+  if(hash !== false)
+    text = sha256.hash(text);
+
+  try {
+    return key.verify(text, signature);
+  } catch(e) {
+    return false;
+  }
+};
+
 
 //ecc algorithm helpers
 function eccAPI(algoName) {
@@ -23,17 +100,37 @@ function eccAPI(algoName) {
     throw new Error("Missing ECC algorithm: " + algoName);
   return {
     generate: function(curve) {
-      return algo.generateKeys(curve, 1);
+      var keys = algo.generateKeys(curve, 1);
+      keys.pub.$curve = curve;
+      keys.sec.$curve = curve;
+      return keys;
     },
-    importPublicHex: function(curve, hex) {
-      curve = sjcl.ecc.curves['c'+curve];
-      return new algo.publicKey(curve, sjcl.codec.hex.toBits(hex));
+    importPublic: function(keyStr) {
+      var key = extract(keyStr);
+      return new algo.publicKey(key.curve, sjcl.codec.hex.toBits(key.hex));
     },
-    importSecretHex: function(curve, hex) {
-      curve = sjcl.ecc.curves['c'+curve];
-      return new algo.secretKey(curve, new sjcl.bn(hex));
+    importSecret: function(keyStr) {
+      var key = extract(keyStr);
+      return new algo.secretKey(key.curve, new sjcl.bn(key.hex));
     }
   };
+}
+
+function extract(str) {
+  return {
+    curve: sjcl.ecc.curves['c'+str.substr(0, 3)],
+    hex: str.substr(3)
+  };
+}
+
+function exportPublic(keyObj) {
+  var obj = keyObj.get();
+  return keyObj.$curve +
+         sjcl.codec.hex.fromBits(obj.x) +
+         sjcl.codec.hex.fromBits(obj.y);
+}
+function exportSecret(keyObj) {
+  return keyObj.$curve + sjcl.codec.hex.fromBits(keyObj.get());
 }
 
 //hash algorithm helpers
@@ -47,141 +144,6 @@ function hashAPI(algoName) {
     }
   };
 }
-
-var algo = {
-  elg: eccAPI('elGamal'),
-  dsa: eccAPI('ecdsa'),
-  exportPublic: function(key) {
-    var obj = key.get();
-    return sjcl.codec.hex.fromBits(obj.x) +
-           sjcl.codec.hex.fromBits(obj.y);
-  },
-  exportSecret: function(key) {
-    return sjcl.codec.hex.fromBits(key.get());
-  },
-  sha256: hashAPI('sha256')
-};
-
-//ECC Class
-function ECC() {
-  this.k = {};
-  this.enck = {};
-  this.deck = {};
-  this.verk = {};
-}
-
-ECC.prototype.curve = DEFAULTS.curve;
-
-ECC.prototype.keys = function(opts) {
-  //grab defaults
-  for(var k in DEFAULTS)
-    if(!opts.hasOwnProperty(k))
-      opts[k] =  DEFAULTS[k];
-
-  //store curve
-  this.curve = opts.curve;
-
-  //generate keys
-  if(opts.generate && opts.encryptDecrypt) {
-    if(opts.encryptKey || opts.decryptKey)
-      throw new Error("Keys 'encryptKey' and 'decryptKey' will be overridden");
-    var encdec = algo.elg.generate(this.curve);
-    this.k.encrypt = encdec.pub;
-    this.k.decrypt = encdec.sec;
-  }
-
-  if(opts.generate && opts.signVerify) {
-    if(opts.signKey || opts.verifyKey)
-      throw new Error("Keys 'signKey' and 'verifyKey' will be overridden");
-    var sigver = algo.dsa.generate(this.curve);
-    this.k.verify = sigver.pub;
-    this.k.sign   = sigver.sec;
-  }
-
-  //import provided keys
-  if(opts.encryptKey)
-    this.k.encrypt = algo.elg.importPublicHex(this.curve, opts.encryptKey);
-  if(opts.decryptKey)
-    this.k.decrypt = algo.elg.importSecretHex(this.curve, opts.decryptKey);
-  if(opts.verifyKey)
-    this.k.verify = algo.dsa.importPublicHex(this.curve, opts.verifyKey);
-  if(opts.signKey)
-    this.k.sign = algo.dsa.importSecretHex(this.curve, opts.signKey);
-
-  //expose provided public keys
-  if(this.k.encrypt)
-    this.encryptKey = algo.exportPublic(this.k.encrypt);
-  if(this.k.verify)
-    this.verifyKey = algo.exportPublic(this.k.verify);
-
-  return this;
-};
-
-ECC.prototype.addEncryptKey = function(recipient, hex) {
-  if(this.enck[recipient])
-    throw new Error("Encryption key already exists beloning to: " +recipient);
-
-  var key = algo.elg.importPublicHex(this.curve, hex);
-  this.enck[recipient] = key.kem();
-};
-
-ECC.prototype.encrypt = function(recipient, plaintext) {
-  var kem = this.enck[recipient];
-  if(!kem)
-    throw new Error("Could not find encrytion key beloning to: " +recipient);
-
-  if(!kem.tagHex)
-    kem.tagHex = sjcl.codec.hex.fromBits(kem.tag);
-
-  var obj = sjcl.json._encrypt(kem.key, plaintext);
-  obj.tag = kem.tagHex;
-  return JSON.stringify(obj);
-};
-
-ECC.prototype.decrypt = function(cipher) {
-  if(!this.k.decrypt)
-    throw new Error("Decryption key missing");
-  
-  var obj = JSON.parse(cipher);
-  var key = this.deck[obj.tag];
-  if(!key)
-    key = this.deck[obj.tag] = this.k.decrypt.unkem(sjcl.codec.hex.toBits(obj.tag));
-  return sjcl.json._decrypt(key, obj);
-};
-
-ECC.prototype.sign = function(text, hashAlgo) {
-
-  if(!this.k.sign)
-    throw new Error("Sign key missing");
-
-  if(hashAlgo)
-    text = algo[hashAlgo].hash(text);
-
-  return this.k.sign.sign(text);
-};
-
-ECC.prototype.addVerifyKey = function(recipient, hex) {
-  if(this.verk[recipient])
-    throw new Error("Verify key already exists beloning to: " +recipient);
-
-  this.verk[recipient] = algo.dsa.importPublicHex(this.curve, hex);
-};
-
-ECC.prototype.verify = function(recipient, text, signature, hashAlgo) {
-
-  var key = this.verk[recipient];
-  if(!key)
-    throw new Error("Could not find verify key beloning to: " + recipient);
-
-  if(hashAlgo)
-    text = algo[hashAlgo].hash(text);
-
-  try {
-    return key.verify(text, signature);
-  } catch(e) {
-    return false;
-  }
-};
 
 //publicise
 if(typeof module !== 'undefined' && module.exports)

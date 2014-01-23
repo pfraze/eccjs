@@ -1,14 +1,14 @@
 ecc.js
 =====
 
-Simple wrapper around [SJCL](http://bitwiseshiftleft.github.io/sjcl/)'s [ECC](http://en.wikipedia.org/wiki/Elliptic_curve_cryptography) Implementation `v0.1.0` (Beta)
+Simple wrapper around [SJCL](http://bitwiseshiftleft.github.io/sjcl/)'s [ECC](http://en.wikipedia.org/wiki/Elliptic_curve_cryptography) Implementation `v0.3.0` (Beta)
 
 ## Download
 
 #### Browser
 
-* [ecc.js](https://raw.github.com/jpillora/eccjs/gh-pages/dist/0.1/ecc.js)
-* [ecc.min.js](https://raw.github.com/jpillora/eccjs/gh-pages/dist/0.1/ecc.min.js)
+* [ecc.js](https://raw.github.com/jpillora/eccjs/gh-pages/dist/0.3/ecc.js)
+* [ecc.min.js](https://raw.github.com/jpillora/eccjs/gh-pages/dist/0.3/ecc.min.js)
 
 #### Node
 
@@ -30,83 +30,55 @@ http://jpillora.com/eccjs
 **Encryption and Decryption**
 
 ``` js
-// Create alice and bob, generate a keypair for alice
-var alice = ecc().keys({ generate: true });
-var bob   = ecc();
-
-// Give bob alice's encryption key
-bob.addEncryptKey('alice', alice.encryptKey);
+// Generate (or load) encryption/decryption keys 
+var keys = ecc.generate(ecc.ENC_DEC);
+// => { dec: "192e35a51dc....", enc: "192037..." }
 
 // A secret message
 var plaintext = "hello world!";
 
-// bob encrypts *for* alice
-var ciphertext = bob.encrypt('alice', text);
+// Encrypt message
+var cipher = ecc.encrypt(keys.enc, plaintext);
+// => {"iv":[1547037338,-736472389,324... }
 
-// alice decrypts
-var result = alice.decrypt(ciphertext);
+// Decrypt message
+var result = ecc.decrypt(keys.dec, cipher);
 
-console.log(plaintext === result); //=>true
+console.log(plaintext === result);
+// => true
 ```
 
 **Sign and Verify**
 
 ``` js
-// Continuing from above...
-
-// Give bob alice's verify key
-bob.addVerifyKey('alice', alice.verifyKey);
+// Generate (or load) sign/verify keys 
+var keys = ecc.generate(ecc.SIG_VER);
+// => { dec: "192e35a51dc....", enc: "192037..." }
 
 // An important message
 var message = "hello world!";
 
-// Alice creates digital signature
-var sig = alice.sign(message, 'sha256');
+// Create digital signature
+var signature = ecc.sign(keys.sig, message);
 
-// Bob verifies
-var result = bob.verify('alice', message, sig, 'sha256');
+// Verify matches the text
+var result = ecc.verify(keys.ver, signature, message);
 
 console.log(result); // => trues
 ```
 
 ## API
 
-Global
+* `ecc.generate(type[, curve = 192])`
+* `ecc.encrypt(key, plaintext)`
+* `ecc.decrypt(key, cipher)`
+* `ecc.sign(key, text[, hash = true])`
+* `ecc.verify(key, signature, text[, hash = true])`
 
-* `ecc()` - Creates an instance of the `ECC` class
+## Todo
 
-* ecc.sjcl - Reference to `sjcl`
-
-`ECC` Methods
-
-* `keys(opts)` - Provide keys to this instance
-  * `opts.curve` - (`384`) NIST curve to use, can be: `192`, `224`, `256`, or `384`.
-  * `opts.generate` (`false`) - Generate key-pairs.
-  * `opts.encryptDecrypt` (`true`) - On generate, create a encrypt/decrypt key-pair.
-  * `opts.signVerify` (`true`) - On generate, create a sign/verify key-pair.
-  * `opts.encryptKey` (`null`) - Import an encryption hex key
-  * `opts.decryptKey` (`null`) - Import an decryption hex key
-  * `opts.signKey` (`null`) - Import an signing hex key
-  * `opts.verifyKey` (`null`) - Import an verify hex key
-
-When a key is generated or imported, it's hex representation will be avaliable as:
-
-* `encryptKey` (`null`)
-* `decryptKey` (`null`)
-* `signKey` (`null`)
-* `verifyKey` (`null`)
-
-To encrypt or verify a message, you must first add the recipient's key first:
-
-* `addEncryptKey(recipient, hex)`
-* `addVerifyKey(sender, hex)`
-
-Once you've got the appropriate keys, you can then:
-
-* `encrypt(recipient, text)` - Encrypts the `text` for `recipient`, producing a `cipher` object.
-* `decrypt(cipher)` - Decrypts the `cipher` object, producing the `text`. Note, the first decryption derives and caches the shared key.
-* `sign(message[, hash])` - Digitally signs the `message` string, producing the `sig`. `message` can optionally be hashed by setting `hash` to `"sha256"`.
-* `verify(sender, message, sig[, hash])` - Confirm a `message` came from `sender` by verifying the `sig`. `message` can optionally be hashed by setting `hash` to `"sha256"`.
+* Improve Performance
+* Timeout Cache?
 
 ---
 

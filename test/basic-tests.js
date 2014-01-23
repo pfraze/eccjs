@@ -3,95 +3,40 @@ var expect = require('chai').expect,
 
 describe('ecc >', function() {
 
-
-  var alice;
-  var bob;
-  var carl;
-
-  it('should generate keys on alice and not on bob and carl', function() {
-    alice = ecc().keys({ generate: true });
-    bob   = ecc().keys({ generate: false });
-    carl  = ecc().keys({ generate: false });
-
-    function check(person, expectation) {
-      expect(person.k.encrypt).to.be[expectation];
-      expect(person.k.decrypt).to.be[expectation];
-      expect(person.k.sign).to.be[expectation];
-      expect(person.k.verify).to.be[expectation];
-    }
-
-    check(alice, 'truthy');
-    check(bob, 'falsy');
-    check(carl, 'falsy');
-  });
-
-
   describe('encrypt/decrypt >', function() {
+    // Generate (or load) encryption/decryption keys 
+    var keys = ecc.generate(ecc.ENC_DEC);
+    var plaintext = "hello world!";
+    var cipher = ecc.encrypt(keys.enc, plaintext);
+    var result = ecc.decrypt(keys.dec, cipher);
 
-    var plaintext = "hello-world!!";
-    var ciphertext = null;
-
-    it('should throw since missing alices key', function() {
-      expect(function() {
-        bob.encrypt('alice', plaintext);
-      }).to.throw(Error);
-    });
-
-    it('should NOT throw since has alices key', function() {
-
-      //add key then try again
-      bob.addEncryptKey('alice', alice.encryptKey);
-
-      expect(function() {
-        ciphertext = bob.encrypt('alice', plaintext);
-      }).not.to.throw(Error);
-
-      expect(ciphertext).not.to.equal(null);
-    });
-
-
-    it('should successfully decrypt', function() {
-      var result = alice.decrypt(ciphertext);
+    it("should work", function() {
       expect(result).to.equal(plaintext);
     });
-
   });
-
 
   describe('sign/verify >', function() {
 
-    var message = "hello-world!!";
-    var signature = null;
-    var result = null;
+    // Generate (or load) sign/verify keys 
+    var keys = ecc.generate(ecc.SIG_VER);
+    // => { dec: "192e35a51dc....", enc: "192037..." }
 
-    it('should create a signature', function() {
-      signature = alice.sign(message, 'sha256');
-      expect(signature).not.to.equal(null);
-    });
+    // An important message
+    var message = "hello world!";
 
-    it('should throw since missing alices key', function() {
-      expect(function() {
-        bob.verify('alice', message, signature, 'sha256');
-      }).to.throw(Error);
-    });
+    // Create digital signature
+    var signature = ecc.sign(keys.sig, message);
 
-    it('should NOT throw since has alices key', function() {
+    // Verify matches the text
 
-      //add key then try again
-      bob.addVerifyKey('alice', alice.verifyKey);
-
-      expect(function() {
-        result = bob.verify('alice', message, signature, 'sha256');
-      }).not.to.throw(Error);
-
+    it("should work", function() {
+      var result = ecc.verify(keys.ver, signature, message);
       expect(result).to.equal(true);
     });
 
-
-    it('should fail on wrong message', function() {
-      var message2 = message + "!";
-      var result2 = bob.verify('alice', message2, signature, 'sha256');
-      expect(result2).to.equal(false);
+    it("should NOT work", function() {
+      var result = ecc.verify(keys.ver, signature, "hello Wor1d!");
+      expect(result).to.equal(false);
     });
 
   });
