@@ -1,6 +1,6 @@
 
-
-var ecc = require('../dist/0.1/ecc');
+// Node.js
+// var ecc = require('../dist/0.1/ecc');
 
 var edkeys = ecc.generate(ecc.ENC_DEC);
 function encdec(text) {
