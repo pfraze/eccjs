@@ -2,7 +2,6 @@
   "name": "eccjs",
   "version": "0.3.0",
   "description": "Simple wrapper around SJCL's ECC Implementation",
-  "main": "dist/0.1/ecc.js",
   "scripts": {
     "test": "node node_modules/mocha/bin/mocha"
   },
