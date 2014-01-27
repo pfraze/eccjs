@@ -13,7 +13,7 @@
 /*global document, window, escape, unescape, module, require, Uint32Array */
 
 /** @namespace The Stanford Javascript Crypto Library, top-level namespace. */
-var sjcl = {
+var sjcl = module.exports = {
   /** @namespace Symmetric ciphers. */
   cipher: {},
 
@@ -3219,8 +3219,12 @@ sjcl.ecc.basicKey.generateKeys = function(cn) {
         throw new sjcl.exception.invalid("no such curve");
       }
     }
-    sec = sec || sjcl.bn.random(curve.r, paranoia);
 
+    curve = 'string' === typeof curve ? sjcl.ecc.curves[curve] : curve
+    
+    console.error('_gen', paranoia, sec)
+    sec = sec || sjcl.bn.random(curve.r, paranoia);
+    console.error('gen', paranoia, sec)
     var pub = curve.G.mult(sec);
     return { pub: new sjcl.ecc[cn].publicKey(curve, pub),
              sec: new sjcl.ecc[cn].secretKey(curve, sec) };
