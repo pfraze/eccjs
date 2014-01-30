@@ -53,7 +53,7 @@ console.log(plaintext === result);
 ``` js
 // Generate (or load) sign/verify keys 
 var keys = ecc.generate(ecc.SIG_VER);
-// => { dec: "192e35a51dc....", enc: "192037..." }
+// => { sig: "192e35a51dc....", ver: "192037..." }
 
 // An important message
 var message = "hello world!";
