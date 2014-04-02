@@ -12,7 +12,13 @@ function toBuffer(words) {
 }
 
 function toWords (buffer) {
+  if(!Buffer.isBuffer(buffer))
+    throw new Error('toWords *must* be passed a buffer')
+
+  if(buffer.length % 4)
+    throw new Error('buffer.length must be multiple of 4, was: ' + buffer.length)
   var l = buffer.length/4
+
   var w = Array(l)
   for(var i = 0; i < l; i++)
     w[i] = buffer.readInt32BE(i*4)
@@ -38,6 +44,13 @@ exports.generate = function (curve, paranoia) {
   var PUBLIC = toBuffer(curve.G.mult(_PRIVATE).toBits())
 
   return { private: PRIVATE, public: PUBLIC}
+}
+
+exports.restore = function (curve, PRIVATE) {
+  return { 
+    private: PRIVATE, 
+    public: toBuffer(curve.G.mult(sjcl.bn.fromBits(toWords(PRIVATE))).toBits())
+  }
 }
 
 exports.sign = function (curve, key, hash, paranoia) {
