@@ -1,86 +1,37 @@
 ecc.js
 =====
 
-Simple wrapper around [SJCL](http://bitwiseshiftleft.github.io/sjcl/)'s [ECC](http://en.wikipedia.org/wiki/Elliptic_curve_cryptography) Implementation `v0.3.0` (Beta)
+nodey ecc lib based on [SJCL](http://bitwiseshiftleft.github.io/sjcl/)'s [ECC](http://en.wikipedia.org/wiki/Elliptic_curve_cryptography) Implementation `v0.3.0` (Beta)
 
-## Download
-
-#### Browser
-
-* [ecc.js](https://raw.github.com/jpillora/eccjs/gh-pages/dist/0.3/ecc.js)
-* [ecc.min.js](https://raw.github.com/jpillora/eccjs/gh-pages/dist/0.3/ecc.min.js)
-
-#### Node
-
-```
-npm install eccjs
-```
-
-## Features
-
-* Easy to use
-* Includes [SJCL](http://bitwiseshiftleft.github.io/sjcl/) as `ecc.sjcl`
-
-## Demo
-
-http://jpillora.com/eccjs
-
-## Quick Usage
-
-**Encryption and Decryption**
+## Example
 
 ``` js
+var crypto = require('crypto')
+var ecc = require('eccjs')
+
 // Generate (or load) encryption/decryption keys 
-var keys = ecc.generate(ecc.ENC_DEC);
-// => { dec: "192e35a51dc....", enc: "192037..." }
+var curve = ecc.curves.k256
+var keys = ecc.generate(curve);
+// => { public: <Buffer...>, private: <Buffer ...>}
 
-// A secret message
+// sign a message
 var plaintext = "hello world!";
+//the hash, as a buffer
+var hash = crypto.createHash('sha256').update(plaintext, 'utf8').digest()
 
-// Encrypt message
-var cipher = ecc.encrypt(keys.enc, plaintext);
-// => {"iv":[1547037338,-736472389,324... }
-
-// Decrypt message
-var result = ecc.decrypt(keys.dec, cipher);
-
-console.log(plaintext === result);
-// => true
-```
-
-**Sign and Verify**
-
-``` js
-// Generate (or load) sign/verify keys 
-var keys = ecc.generate(ecc.SIG_VER);
-// => { dec: "192e35a51dc....", enc: "192037..." }
-
-// An important message
-var message = "hello world!";
-
-// Create digital signature
-var signature = ecc.sign(keys.sig, message);
-
-// Verify matches the text
-var result = ecc.verify(keys.ver, signature, message);
-
-console.log(result); // => trues
+var sig = ecc.sign(curve, keys.private, hash)
+var valid = ecc.verify(curve, keys.public, hash, sig)
+console.log(valid)
+// => true 
 ```
 
 ## API
 
 * `ecc.generate(type[, curve = 192])`
-* `ecc.encrypt(key, plaintext)`
-* `ecc.decrypt(key, cipher)`
-* `ecc.sign(key, text[, hash = true])`
-* `ecc.verify(key, signature, text[, hash = true])`
-
-## Todo
-
-* Improve Performance
-* Timeout Cache?
-
----
+* `ecc.sign(curve, key, hash)`
+* `ecc.verify(curve, key, signature, hash)`
+* `ecc.kem(curve, key, paranoia)`
+* `ecc.unkem(curve, key)`
 
 #### MIT License
 
