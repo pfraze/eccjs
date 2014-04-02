@@ -37,5 +37,10 @@ tape('generate & sign valid keys', function (t) {
   var b64 = sig.toString('base64')
   console.log(b64, b64.length, sig.length)
 
+  //recreate a key from a private key
+  var _keys = ecc.restore(curve, keys.private)
+
+  t.deepEqual(_keys, keys, 'recreate keys from a private key')
+
   t.end()
 })
