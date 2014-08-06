@@ -81,9 +81,3 @@ exports.unkem = function (curve, key, kem) {
   return ecc.elGamal.privateKey(curve, key).unkey(paranoia)
 }
 
-if(!module.parent) {
-  var keys = exports.generate(exports.curves.k256, 6)
-  console.log(keys)
-  console.log(exports.sign(exports.curves.k256, keys, 'hello there!'))
-}
-
