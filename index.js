@@ -47,8 +47,8 @@ exports.generate = function (curve, paranoia) {
 }
 
 exports.restore = function (curve, PRIVATE) {
-  return { 
-    private: PRIVATE, 
+  return {
+    private: PRIVATE,
     public: toBuffer(curve.G.mult(sjcl.bn.fromBits(toWords(PRIVATE))).toBits())
   }
 }
@@ -65,7 +65,6 @@ exports.verify = function (curve, key, sig, hash) {
     var pub = new ecc.ecdsa.publicKey(curve, toWords(key))
     return pub.verify(toWords(hash), toWords(sig))
   } catch (err) {
-    console.log('errorL', err)
     if(!/^CORRUPT/.test(''+err)) throw err
     return false
   }
